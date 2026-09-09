@@ -3,10 +3,10 @@ host = "localhost"
 port = 8080
 
 [database]
-  name = "app"
-  user = "admin"
-    password = "secret"
+name = "app"
+user = "admin"
+password = "secret"
 
 [features]
 enabled = true
-  debug = false
+debug = false
