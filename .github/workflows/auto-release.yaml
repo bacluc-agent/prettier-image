@@ -19,7 +19,101 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Create new tag
-        uses: projectsyn/pr-label-tag-action@v1
+        uses: actions/github-script@v8
         with:
-          trigger: |
-            Test and release prettier image
+          script: |
+            const pullRequest = context.payload.pull_request
+            if (!pullRequest) {
+              throw new Error(`Action is running for a '${context.eventName}' event. Only 'pull_request' events are supported`)
+            }
+
+            const patchLabel = 'bump:patch'
+            const minorLabel = 'bump:minor'
+            const majorLabel = 'bump:major'
+            const triggerNames = ['Test and release prettier image']
+            const formatCode = text => `\`${text}\``
+            const comments = {
+              release: '🚀 Merging this PR will release `<next-version>`',
+              released: '🚀 This PR has been released as [`<next-version>`](<release-url>)',
+              unmerged: 'This PR has been closed unmerged. No new release will be created for these changes'
+            }
+
+            const updateComment = async (body, updateOnly = false) => {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                ...context.repo,
+                issue_number: pullRequest.number
+              })
+              const actionComments = comments.filter(comment =>
+                comment.user?.login === 'github-actions[bot]' &&
+                comment.body?.includes('🛠️ _Auto tagging ')
+              )
+              if (actionComments.length > 0) {
+                await github.rest.issues.updateComment({
+                  ...context.repo,
+                  comment_id: actionComments[0].id,
+                  body
+                })
+              } else if (!updateOnly) {
+                await github.rest.issues.createComment({
+                  ...context.repo,
+                  issue_number: pullRequest.number,
+                  body
+                })
+              }
+            }
+
+            const labels = pullRequest.labels.map(label => label.name).filter(label =>
+              [patchLabel, minorLabel, majorLabel].includes(label)
+            )
+            if (labels.length > 1) {
+              await updateComment(
+                `Found ${labels.length} bump labels (${labels.map(formatCode).join(', ')}), please make sure you only add one bump label.\n\n🛠️ _Auto tagging disabled_`
+              )
+              return
+            }
+            if (labels.length === 0) {
+              await updateComment('No bump labels present\n\n🛠️ _Auto tagging disabled_', true)
+              return
+            }
+
+            const bump = labels[0] === patchLabel ? 'patch' : labels[0] === minorLabel ? 'minor' : 'major'
+            const tags = await github.paginate(github.rest.repos.listTags, context.repo)
+            const versions = tags.map(tag => tag.name).filter(tag => /^v\d+\.\d+\.\d+$/.test(tag))
+            versions.sort((a, b) => {
+              const aParts = a.slice(1).split('.').map(Number)
+              const bParts = b.slice(1).split('.').map(Number)
+              return bParts[0] - aParts[0] || bParts[1] - aParts[1] || bParts[2] - aParts[2]
+            })
+            const currentVersion = versions[0] || 'v0.0.0'
+            const versionParts = currentVersion.slice(1).split('.').map(Number)
+            const bumpIndex = { major: 0, minor: 1, patch: 2 }[bump]
+            versionParts[bumpIndex] += 1
+            if (bumpIndex === 0) versionParts[1] = 0
+            if (bumpIndex < 2) versionParts[2] = 0
+            const nextVersion = `v${versionParts.join('.')}`
+            const releaseUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/releases/tag/${nextVersion}`
+            const triggers = triggerNames.map(formatCode).join(', ')
+            const formatComment = comment => comment.replaceAll('<next-version>', nextVersion).replaceAll('<release-url>', releaseUrl)
+
+            if (context.payload.action === 'closed' && pullRequest.merged === true) {
+              await github.rest.git.createRef({
+                ...context.repo,
+                ref: `refs/tags/${nextVersion}`,
+                sha: pullRequest.merge_commit_sha
+              })
+              const workflows = await github.paginate(github.rest.actions.listRepoWorkflows, context.repo)
+              for (const triggerName of triggerNames) {
+                for (const workflow of workflows.filter(workflow => workflow.name === triggerName)) {
+                  await github.rest.actions.createWorkflowDispatch({
+                    ...context.repo,
+                    workflow_id: workflow.id,
+                    ref: `refs/tags/${nextVersion}`
+                  })
+                }
+              }
+              await updateComment(`${formatComment(comments.released)}\n\nTriggering workflows ${triggers}\n\n🛠️ _Auto tagging enabled_ with label ${formatCode(labels[0])}`)
+            } else if (context.payload.action === 'closed') {
+              await updateComment(`${formatComment(comments.unmerged)}\n\n🛠️ _Auto tagging disabled_`)
+            } else {
+              await updateComment(`${formatComment(comments.release)}\n\nMerging will trigger workflows ${triggers}\n\n🛠️ _Auto tagging enabled_ with label ${formatCode(labels[0])}`)
+            }
