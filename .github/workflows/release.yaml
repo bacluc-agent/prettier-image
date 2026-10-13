@@ -17,6 +17,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      - name: "set default branch"
+        run: git config --global init.defaultBranch main
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ env.ref }}
@@ -53,6 +56,9 @@ jobs:
           result-encoding: string
           script: |
             return context.repo.owner.toLowerCase()
+
+      - name: "set default branch"
+        run: git config --global init.defaultBranch main
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -128,6 +134,9 @@ jobs:
       tags: ${{ needs.build-info.outputs.tags }}
       repo-owner: ${{ needs.build-info.outputs.repo-owner }}
     steps:
+      - name: "set default branch"
+        run: git config --global init.defaultBranch main
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ env.ref }}
