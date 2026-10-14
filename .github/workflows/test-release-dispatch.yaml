@@ -1,0 +1,25 @@
+name: Test release dispatch
+on:
+  pull_request:
+    paths:
+      - .github/workflows/auto-release.yaml
+      - .github/workflows/test-release-dispatch.yaml
+      - scripts/dispatch-release.js
+      - scripts/dispatch-release.test.js
+  push:
+    branches:
+      - "**"
+    paths:
+      - .github/workflows/auto-release.yaml
+      - .github/workflows/test-release-dispatch.yaml
+      - scripts/dispatch-release.js
+      - scripts/dispatch-release.test.js
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Test release workflow dispatch request
+        run: node --test scripts/dispatch-release.test.js

@@ -18,8 +18,29 @@ jobs:
   create-release-tag:
     runs-on: ubuntu-latest
     steps:
+      - name: Record existing tags
+        id: existing-tags
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const tags = await github.paginate(github.rest.repos.listTags, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            })
+            core.setOutput('names', JSON.stringify(tags.map(tag => tag.name)))
+
       - name: Create new tag
         uses: projectsyn/pr-label-tag-action@v1
+
+      - name: Dispatch release workflow for the new tag
+        if: github.event.action == 'closed' && github.event.pull_request.merged
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          EXISTING_TAGS: ${{ steps.existing-tags.outputs.names }}
         with:
-          trigger: |
-            Test and release prettier image
+          script: |
+            await require('./scripts/dispatch-release').dispatchNewTag(
+              github,
+              context,
+              JSON.parse(process.env.EXISTING_TAGS),
+            )
