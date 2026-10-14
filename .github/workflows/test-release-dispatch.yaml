@@ -8,7 +8,7 @@ on:
       - scripts/dispatch-release.test.js
   push:
     branches:
-      - '**'
+      - "**"
     paths:
       - .github/workflows/auto-release.yaml
       - .github/workflows/test-release-dispatch.yaml
