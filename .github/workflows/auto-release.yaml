@@ -14,12 +14,18 @@ on:
     paths-ignore:
       - "test-files/**"
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: write
+
 jobs:
   create-release-tag:
     runs-on: ubuntu-latest
     steps:
       - name: Create new tag
-        uses: actions/github-script@v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const pullRequest = context.payload.pull_request
