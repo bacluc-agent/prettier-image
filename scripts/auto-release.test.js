@@ -250,3 +250,59 @@ test("ignores comments that are not bot auto tagging markers", async () => {
   assert.equal(writes[0][0], "updateComment");
   assert.equal(writes[0][1].comment_id, 3);
 });
+
+test("falls back to v0.0.0 when no tags exist", async () => {
+  const cases = [
+    ["bump:patch", "v0.0.1"],
+    ["bump:major", "v1.0.0"],
+  ];
+  for (const [label, nextVersion] of cases) {
+    const { github, writes } = createGitHub();
+    await run(pullRequestContext({ labels: [label] }), github);
+    assert.equal(writes.length, 1);
+    assert.equal(writes[0][0], "createComment");
+    assert.ok(writes[0][1].body.includes(nextVersion));
+    assert.doesNotMatch(writes[0][1].body, /NaN/);
+  }
+});
+
+test("picks the highest version from unordered tags", async () => {
+  const { github, writes } = createGitHub({
+    tags: [{ name: "v1.9.0" }, { name: "v1.10.0" }, { name: "v1.2.3" }],
+  });
+  await run(pullRequestContext({ labels: ["bump:patch"] }), github);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0][0], "createComment");
+  assert.ok(writes[0][1].body.includes("v1.10.1"));
+});
+
+test("ignores tags that are not vX.Y.Z", async () => {
+  const { github, writes } = createGitHub({
+    tags: [
+      { name: "v2.0.0-rc.1" },
+      { name: "v1.2.3" },
+      { name: "nightly" },
+      { name: "v9.9.9-beta" },
+    ],
+  });
+  await run(pullRequestContext({ labels: ["bump:patch"] }), github);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0][0], "createComment");
+  assert.ok(writes[0][1].body.includes("v1.2.4"));
+  assert.doesNotMatch(writes[0][1].body, /NaN/);
+});
+
+test("ignores labels that are not bump labels", async () => {
+  const { github, writes } = createGitHub({
+    comments: [markerComment({ id: 12 })],
+  });
+  await run(
+    pullRequestContext({ labels: ["documentation", "enhancement"] }),
+    github,
+  );
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0][0], "updateComment");
+  assert.equal(writes[0][1].comment_id, 12);
+  assert.match(writes[0][1].body, /No bump labels present/);
+  assert.equal(writes.filter(([name]) => name !== "updateComment").length, 0);
+});
