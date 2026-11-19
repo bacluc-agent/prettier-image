@@ -1,0 +1,25 @@
+name: Test auto release
+on:
+  pull_request:
+    paths:
+      - .github/workflows/auto-release.yaml
+      - .github/workflows/test-auto-release.yaml
+      - scripts/auto-release.test.js
+  push:
+    branches:
+      - "**"
+    paths:
+      - .github/workflows/auto-release.yaml
+      - .github/workflows/test-auto-release.yaml
+      - scripts/auto-release.test.js
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set default branch
+        run: git config --global init.defaultBranch main
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Test auto release workflow
+        run: node --test scripts/auto-release.test.js
