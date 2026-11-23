@@ -97,7 +97,6 @@ jobs:
         id: build-info
         run: |
           set -x
-          sudo snap install yq
 
           export REPO_NAME=$(basename $(pwd))
           echo "services:" > /tmp/docker-compose.yml
